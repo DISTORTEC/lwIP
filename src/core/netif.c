@@ -290,7 +290,7 @@ netif_add(struct netif *netif,
 #endif /* LWIP_IPV4 */
           void *state, netif_init_fn init, netif_input_fn input)
 {
-#if LWIP_IPV6
+#if LWIP_IPV6 || (LWIP_DNS && LWIP_DNS_SERVERS_PER_NETIF)
   s8_t i;
 #endif
 
@@ -383,6 +383,13 @@ netif_add(struct netif *netif,
 #if LWIP_IPV4
   netif_set_addr(netif, ipaddr, netmask, gw);
 #endif /* LWIP_IPV4 */
+
+#if LWIP_DNS && LWIP_DNS_SERVERS_PER_NETIF
+  for (i = 0; i < DNS_MAX_SERVERS; i++)
+  {
+      ip_addr_set_zero(&netif->dns_servers[i]);
+  }
+#endif /* LWIP_DNS && LWIP_DNS_SERVERS_PER_NETIF */
 
   /* call user specified initialization function for netif */
   if (init(netif) != ERR_OK) {
@@ -1105,11 +1112,11 @@ netif_set_link_callback(struct netif *netif, netif_status_callback_fn link_callb
 /**
  * @ingroup netif
  * Send an IP packet to be received on the same netif (loopif-like).
- * The pbuf is copied and added to an internal queue which is fed to 
+ * The pbuf is copied and added to an internal queue which is fed to
  * netif->input by netif_poll().
  * In multithreaded mode, the call to netif_poll() is queued to be done on the
  * TCP/IP thread.
- * In callback mode, the user has the responsibility to call netif_poll() in 
+ * In callback mode, the user has the responsibility to call netif_poll() in
  * the main loop of their application.
  *
  * @param netif the lwip network interface structure

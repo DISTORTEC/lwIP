@@ -86,6 +86,12 @@ struct local_hostlist_entry {
 #endif /* DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
 #endif /* DNS_LOCAL_HOSTLIST */
 
+#if LWIP_DNS_SERVERS_PER_NETIF
+#define LWIP_DNS_NETIF_ARG(x) , x
+#else
+#define LWIP_DNS_NETIF_ARG(x)
+#endif /* LWIP_DNS_SERVERS_PER_NETIF */
+
 #if LWIP_IPV4
 extern const ip_addr_t dns_mquery_v4group;
 #endif /* LWIP_IPV4 */
@@ -104,8 +110,8 @@ typedef void (*dns_found_callback)(const char *name, const ip_addr_t *ipaddr, vo
 
 void             dns_init(void);
 void             dns_tmr(void);
-void             dns_setserver(u8_t numdns, const ip_addr_t *dnsserver);
-const ip_addr_t* dns_getserver(u8_t numdns);
+void             dns_setserver(u8_t numdns, const ip_addr_t *dnsserver LWIP_DNS_NETIF_ARG(struct netif *netif));
+const ip_addr_t* dns_getserver(u8_t numdns LWIP_DNS_NETIF_ARG(struct netif *netif));
 err_t            dns_gethostbyname(const char *hostname, ip_addr_t *addr,
                                    dns_found_callback found, void *callback_arg);
 err_t            dns_gethostbyname_addrtype(const char *hostname, ip_addr_t *addr,

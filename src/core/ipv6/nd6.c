@@ -791,14 +791,14 @@ nd6_input(struct pbuf *p, struct netif *inp)
 
             if (htonl(rdnss_opt->lifetime) > 0) {
               /* TODO implement Lifetime > 0 */
-              dns_setserver(rdnss_server_idx++, &rdnss_address);
+              dns_setserver(rdnss_server_idx++, &rdnss_address LWIP_DNS_NETIF_ARG(inp));
             } else {
               /* TODO implement DNS removal in dns.c */
               u8_t s;
               for (s = 0; s < DNS_MAX_SERVERS; s++) {
-                const ip_addr_t *addr = dns_getserver(s);
+                const ip_addr_t *addr = dns_getserver(s LWIP_DNS_NETIF_ARG(inp));
                 if(ip_addr_eq(addr, &rdnss_address)) {
-                  dns_setserver(s, NULL);
+                  dns_setserver(s, IP_ADDR_ANY LWIP_DNS_NETIF_ARG(inp));
                 }
               }
             }

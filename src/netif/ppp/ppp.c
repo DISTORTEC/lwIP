@@ -636,7 +636,7 @@ int ppp_init(void)
 
   return 0;
 }
- 
+
 /*
  * Create a new PPP control block.
  *
@@ -1120,12 +1120,16 @@ int cifproxyarp(ppp_pcb *pcb, u32_t his_adr) {
  */
 int sdns(ppp_pcb *pcb, u32_t ns1, u32_t ns2) {
   ip_addr_t ns;
+#if LWIP_DNS_SERVERS_PER_NETIF == 0
   LWIP_UNUSED_ARG(pcb);
+#else
+  LWIP_ASSERT("pcb != NULL", pcb);
+#endif
 
   ip_addr_set_ip4_u32_val(ns, ns1);
-  dns_setserver(0, &ns);
+  dns_setserver(0, &ns LWIP_DNS_NETIF_ARG(pcb->netif));
   ip_addr_set_ip4_u32_val(ns, ns2);
-  dns_setserver(1, &ns);
+  dns_setserver(1, &ns LWIP_DNS_NETIF_ARG(pcb->netif));
   return 1;
 }
 
@@ -1136,17 +1140,21 @@ int sdns(ppp_pcb *pcb, u32_t ns1, u32_t ns2) {
 int cdns(ppp_pcb *pcb, u32_t ns1, u32_t ns2) {
   const ip_addr_t *nsa;
   ip_addr_t nsb;
+#if LWIP_DNS_SERVERS_PER_NETIF == 0
   LWIP_UNUSED_ARG(pcb);
+#else
+  LWIP_ASSERT("pcb != NULL", pcb);
+#endif
 
-  nsa = dns_getserver(0);
+  nsa = dns_getserver(0 LWIP_DNS_NETIF_ARG(pcb->netif));
   ip_addr_set_ip4_u32_val(nsb, ns1);
   if (ip_addr_eq(nsa, &nsb)) {
-    dns_setserver(0, IP_ADDR_ANY);
+    dns_setserver(0, IP_ADDR_ANY LWIP_DNS_NETIF_ARG(pcb->netif));
   }
-  nsa = dns_getserver(1);
+  nsa = dns_getserver(1 LWIP_DNS_NETIF_ARG(pcb->netif));
   ip_addr_set_ip4_u32_val(nsb, ns2);
   if (ip_addr_eq(nsa, &nsb)) {
-    dns_setserver(1, IP_ADDR_ANY);
+    dns_setserver(1, IP_ADDR_ANY LWIP_DNS_NETIF_ARG(pcb->netif));
   }
   return 1;
 }

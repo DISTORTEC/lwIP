@@ -278,6 +278,9 @@ struct netif {
   ip_addr_t netmask;
   ip_addr_t gw;
 #endif /* LWIP_IPV4 */
+#if LWIP_DNS && LWIP_DNS_SERVERS_PER_NETIF
+  ip_addr_t dns_servers[DNS_MAX_SERVERS];
+#endif /* LWIP_DNS && LWIP_DNS_SERVERS_PER_NETIF */
 #if LWIP_IPV6
   /** Array of IPv6 addresses for this netif. */
   ip_addr_t ip6_addr[LWIP_IPV6_NUM_ADDRESSES];

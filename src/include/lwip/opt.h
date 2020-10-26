@@ -1191,6 +1191,20 @@
 #if !defined LWIP_DNS_SUPPORT_MDNS_QUERIES || defined __DOXYGEN__
 #define LWIP_DNS_SUPPORT_MDNS_QUERIES   0
 #endif
+
+/**
+ * LWIP_DNS_SERVERS_PER_NETIF==1: each netif has its own array of DNS servers.
+ * In this case every call to dns_setserver() and dns_getserver() should specify
+ * the netif as the last argument (NULL to access the global, common array of
+ * DNS servers, which is then used as a fallback). Defult behaviour (0) is to
+ * have one common array of DNS servers, shared among netifs. Generally you
+ * should leave this disabled if your application has just one netif, while you
+ * should consider enabling this feature for an application with multiple netifs
+ * which get their DNS servers automatically (e.g. ETH with DHCP + PPP modem).
+ */
+#if !defined LWIP_DNS_SERVERS_PER_NETIF || defined __DOXYGEN__
+#define LWIP_DNS_SERVERS_PER_NETIF      0
+#endif
 /**
  * @}
  */

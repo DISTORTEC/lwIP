@@ -318,7 +318,7 @@ dns_init(void)
   /* initialize default DNS server address */
   ip_addr_t dnsserver;
   DNS_SERVER_ADDRESS(&dnsserver);
-  dns_setserver(0, &dnsserver);
+  dns_setserver(0, &dnsserver LWIP_DNS_NETIF_ARG(NULL));
 #endif /* DNS_SERVER_ADDRESS */
 
   LWIP_ASSERT("sanity check SIZEOF_DNS_QUERY",
@@ -356,17 +356,27 @@ dns_init(void)
  *
  * @param numdns the index of the DNS server to set must be < DNS_MAX_SERVERS
  * @param dnsserver IP address of the DNS server to set
+ * @param netif specific netif to set DNS server on. If NULL, set default DNS server
+ *         (requires LWIP_DNS_SERVERS_PER_NETIF)
  */
 void
-dns_setserver(u8_t numdns, const ip_addr_t *dnsserver)
+dns_setserver(u8_t numdns, const ip_addr_t *dnsserver LWIP_DNS_NETIF_ARG(struct netif *netif))
 {
-  if (numdns < DNS_MAX_SERVERS) {
-    if (dnsserver != NULL) {
-      dns_servers[numdns] = (*dnsserver);
-    } else {
-      dns_servers[numdns] = *IP_ADDR_ANY;
-    }
+  if (numdns >= DNS_MAX_SERVERS) {
+    return;
   }
+#if LWIP_DNS_SERVERS_PER_NETIF
+  if (netif) {
+    netif->dns_servers[numdns] = *dnsserver;
+  } else {
+    dns_servers[numdns] = *dnsserver;
+  }
+  LWIP_DEBUGF(DNS_DEBUG, ("DNS server [%"U16_F"] for %.2s%"U16_F" set to %s\n", (u16_t)numdns,
+              netif ? netif->name : "All", netif ? (u16_t)netif->num : 0, ipaddr_ntoa(dnsserver)));
+#else
+  dns_servers[numdns] = *dnsserver;
+  LWIP_DEBUGF(DNS_DEBUG, ("DNS server [%"U16_F"] set to %s\n", (u16_t)numdns, ipaddr_ntoa(dnsserver)));
+#endif /*LWIP_DNS_SERVERS_PER_NETIF*/
 }
 
 /**
@@ -374,17 +384,27 @@ dns_setserver(u8_t numdns, const ip_addr_t *dnsserver)
  * Obtain one of the currently configured DNS server.
  *
  * @param numdns the index of the DNS server
+ * @param netif specific netif to fetch server from if not NULL, else fetch default DNS server
+ *         (requires LWIP_DNS_SERVERS_PER_NETIF)
  * @return IP address of the indexed DNS server or "ip_addr_any" if the DNS
- *         server has not been configured.
+ *         server has not been configured. For the cases where a netif specific DNS server is
+ *         returned, the pointer is to the dns_servers entry in the netif structure, do not store
+ *         the returned pointer persistently in the case where the netif may be destroyed
  */
 const ip_addr_t *
-dns_getserver(u8_t numdns)
+dns_getserver(u8_t numdns LWIP_DNS_NETIF_ARG(struct netif *netif))
 {
-  if (numdns < DNS_MAX_SERVERS) {
-    return &dns_servers[numdns];
-  } else {
+  if (numdns >= DNS_MAX_SERVERS) {
     return IP_ADDR_ANY;
   }
+#if LWIP_DNS_SERVERS_PER_NETIF
+  if (netif) {
+      if (!ip_addr_isany(&netif->dns_servers[numdns])) {
+        return &netif->dns_servers[numdns];
+      }
+  }
+#endif /*LWIP_DNS_SERVERS_PER_NETIF*/
+  return &dns_servers[numdns];
 }
 
 /**
@@ -776,10 +796,10 @@ dns_send(u8_t idx)
   u8_t pcb_idx;
   struct dns_table_entry *entry = &dns_table[idx];
 
-  LWIP_DEBUGF(DNS_DEBUG, ("dns_send: dns_servers[%"U16_F"] \"%s\": request\n",
+  LWIP_DEBUGF(DNS_DEBUG, ("dns_send: server_idx %"U16_F" \"%s\": request\n",
                           (u16_t)(entry->server_idx), entry->name));
   LWIP_ASSERT("dns server out of array", entry->server_idx < DNS_MAX_SERVERS);
-  if (ip_addr_isany_val(dns_servers[entry->server_idx])
+  if (ip_addr_isany(dns_getserver(entry->server_idx LWIP_DNS_NETIF_ARG(netif_default)))
 #if LWIP_DNS_SUPPORT_MDNS_QUERIES
       && !entry->is_mdns
 #endif
@@ -864,7 +884,7 @@ dns_send(u8_t idx)
 #endif /* LWIP_DNS_SUPPORT_MDNS_QUERIES */
     {
       dst_port = DNS_SERVER_PORT;
-      dst = &dns_servers[entry->server_idx];
+      dst = dns_getserver(entry->server_idx LWIP_DNS_NETIF_ARG(netif_default));
     }
     err = udp_sendto(dns_pcbs[pcb_idx], p, dst, dst_port);
 
@@ -1045,7 +1065,7 @@ dns_backupserver_available(struct dns_table_entry *pentry)
   u8_t ret = 0;
 
   if (pentry) {
-    if ((pentry->server_idx + 1 < DNS_MAX_SERVERS) && !ip_addr_isany_val(dns_servers[pentry->server_idx + 1])) {
+    if ((pentry->server_idx + 1 < DNS_MAX_SERVERS) && !ip_addr_isany(dns_getserver(pentry->server_idx + 1 LWIP_DNS_NETIF_ARG(netif_default)))) {
       ret = 1;
     }
   }
@@ -1237,7 +1257,7 @@ dns_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, 
         {
           /* Check whether response comes from the same network address to which the
              question was sent. (RFC 5452) */
-          if (!ip_addr_eq(addr, &dns_servers[entry->server_idx])) {
+          if (!ip_addr_eq(addr, dns_getserver(entry->server_idx LWIP_DNS_NETIF_ARG(netif_default)))) {
             goto ignore_packet; /* ignore this packet */
           }
         }
@@ -1644,7 +1664,7 @@ dns_gethostbyname_addrtype(const char *hostname, ip_addr_t *addr, dns_found_call
 #endif /* LWIP_DNS_SUPPORT_MDNS_QUERIES */
   {
     /* prevent calling found callback if no server is set, return error instead */
-    if (ip_addr_isany_val(dns_servers[0])) {
+    if (ip_addr_isany(dns_getserver(0 LWIP_DNS_NETIF_ARG(netif_default)))) {
       return ERR_VAL;
     }
   }
